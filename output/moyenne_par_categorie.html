@@ -1,0 +1,176 @@
+
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<h2>Montant moyen d'achat par catégorie</h2>
+<canvas id="myChart" width="800" height="400"></canvas>
+<script>
+const ctx = document.getElementById('myChart').getContext('2d');
+const myChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: ["Maison","High-tech","Livres","Sport","Beauté","Mode"],
+        datasets: [{
+            label: 'Montant moyen (€)',
+            data: [50.15920582024153,50.158715651857904,50.14635833842385,50.03638231494816,49.85576643399093,49.83086129102693],
+            borderWidth: 1,
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderColor: 'rgba(75, 192, 192, 1)'
+        }]
+    },
+    options: {
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+</body>
+</html>
+s.contains("") && !cols.contains("null")
+}
+
+val validData = cleanedNoNulls.filter { line =>
+val cols = line.split(",", -1).map(_.trim)
+try {
+val duration = cols(1).toInt
+val pages = cols(2).toInt
+val amount = cols(4).toDouble
+val score = cols(5).toDouble
+duration >= 0 && pages >= 0 && amount >= 0 && score >= 1 && score <= 5
+} catch {
+case _: Exception => false
+}
+}
+
+val sessions = validData.map { line =>
+val cols = line.split(",", -1).map(_.trim)
+val duration = math.min(cols(1).toInt, 300)
+val pages = math.min(cols(2).toInt, 100)
+val amount = math.min(cols(4).toDouble, 1000.0)
+
+EcommerceSession(
+cols(0),
+duration,
+pages,
+StringUtils.capitalize(cols(3).toLowerCase),
+amount,
+cols(5).toDouble,
+cols(6),
+cols(7),
+cols(8),
+cols(9),
+StringUtils.stripAccents(cols(10))
+)
+}.cache()
+
+val avgAmountByCategory = sessions
+.map(s => (s.product_category, (s.purchase_amount, 1)))
+.reduceByKey((a, b) => (a._1 + b._1, a._2 + b._2))
+.mapValues { case (total, count) => total / count }
+.collect()
+.sortBy(-_._2)
+
+val avgScoreByDevice = sessions
+.map(s => (s.device_type, (s.review_score, 1)))
+.reduceByKey((a, b) => (a._1 + b._1, a._2 + b._2))
+.mapValues { case (total, count) => total / count }
+.collect()
+
+val avgAmountByCountry = sessions
+.map(s => (s.country, (s.purchase_amount, 1)))
+.reduceByKey((a, b) => (a._1 + b._1, a._2 + b._2))
+.mapValues { case (total, count) => total / count }
+.collect()
+.sortBy(-_._2)
+
+val categories = avgAmountByCategory.map(_._1).map(_.replace("\"", "\\\"")).mkString("\"", "\",\"", "\"")
+val catValues = avgAmountByCategory.map(_._2).mkString(",")
+
+val devices = avgScoreByDevice.map(_._1).map(_.replace("\"", "\\\"")).mkString("\"", "\",\"", "\"")
+val scoreValues = avgScoreByDevice.map(_._2).mkString(",")
+
+val countries = avgAmountByCountry.map(_._1).map(_.replace("\"", "\\\"")).mkString("\"", "\",\"", "\"")
+val countryValues = avgAmountByCountry.map(_._2).mkString(",")
+
+val html =
+s"""
+|<html>
+|<head>
+    |<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    |<style>
+    |  body { font-family: Arial; }
+    |  h2 { margin-top: 40px; }
+    |  canvas { margin-bottom: 60px; }
+    |</style>
+    |</head>
+|<body>
+|<h1>Tableau de bord Analyse E-Commerce</h1>
+|
+|<h2>Montant moyen par catégorie</h2>
+|<canvas id="chart1" width="800" height="400"></canvas>
+|
+|<h2>Note moyenne par type d'appareil</h2>
+|<canvas id="chart2" width="800" height="400"></canvas>
+|
+|<h2>Montant moyen par pays</h2>
+|<canvas id="chart3" width="800" height="400"></canvas>
+|
+|<script>
+    |new Chart(document.getElementById('chart1'), {
+        |  type: 'bar',
+    |  data: {
+    |    labels: [$categories],
+    |    datasets: [{
+        |      label: 'Montant moyen (€)',
+    |      data: [$catValues],
+    |      backgroundColor: 'rgba(75, 192, 192, 0.2)',
+    |      borderColor: 'rgba(75, 192, 192, 1)',
+    |      borderWidth: 1
+        |    }]
+    |  }
+    |});
+    |
+    |new Chart(document.getElementById('chart2'), {
+        |  type: 'bar',
+    |  data: {
+    |    labels: [$devices],
+    |    datasets: [{
+        |      label: 'Note moyenne (/5)',
+    |      data: [$scoreValues],
+    |      backgroundColor: 'rgba(255, 206, 86, 0.2)',
+    |      borderColor: 'rgba(255, 206, 86, 1)',
+    |      borderWidth: 1
+        |    }]
+    |  }
+    |});
+    |
+    |new Chart(document.getElementById('chart3'), {
+        |  type: 'bar',
+    |  data: {
+    |    labels: [$countries],
+    |    datasets: [{
+        |      label: 'Montant moyen (€)',
+    |      data: [$countryValues],
+    |      backgroundColor: 'rgba(153, 102, 255, 0.2)',
+    |      borderColor: 'rgba(153, 102, 255, 1)',
+    |      borderWidth: 1
+        |    }]
+    |  }
+    |});
+    |</script>
+|</body>
+|</html>
+|""".stripMargin
+
+Files.createDirectories(Paths.get("output"))
+Files.write(Paths.get("output/dashboard.html"), html.getBytes, StandardOpenOption.CREATE)
+
+println("✅ Dashboard HTML généré : output/dashboard.html")
+sc.stop()
+}
+}

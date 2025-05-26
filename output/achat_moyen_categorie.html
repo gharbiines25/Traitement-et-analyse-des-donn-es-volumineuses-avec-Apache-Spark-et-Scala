@@ -1,0 +1,181 @@
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.commons.lang3.StringUtils
+import java.nio.file.{Files, Paths, StandardOpenOption}
+
+case class EcommerceSession(
+user_id: String,
+session_duration: Int,
+pages_viewed: Int,
+product_category: String,
+purchase_amount: Double,
+review_score: Double,
+review_comment: String,
+timestamp: String,
+device_type: String,
+country: String,
+city: String
+)
+
+object EcommercePreprocessing {
+def main(args: Array[String]): Unit = {
+val conf = new SparkConf().setAppName("Ecommerce Data Preprocessing").setMaster("local[*]")
+val sc = new SparkContext(conf)
+
+val rawData = sc.textFile("data/ecommerce_data_enriched.csv")
+val header = rawData.first()
+val noHeader = rawData.filter(_ != header)
+val cleaned = noHeader.filter(_.split(",", -1).length == 11)
+
+val cleanedNoNulls = cleaned.filter { line =>
+val cols = line.split(",", -1).map(_.trim)
+!cols.contains("") && !cols.contains("null")
+}
+
+val validData = cleanedNoNulls.filter { line =>
+val cols = line.split(",", -1).map(_.trim)
+try {
+val duration = cols(1).toInt
+val pages = cols(2).toInt
+val amount = cols(4).toDouble
+val score = cols(5).toDouble
+duration >= 0 && pages >= 0 && amount >= 0 && score >= 1 && score <= 5
+} catch {
+case _: Exception => false
+}
+}
+
+val sessions = validData.map { line =>
+val cols = line.split(",", -1).map(_.trim)
+val duration = math.min(cols(1).toInt, 300)
+val pages = math.min(cols(2).toInt, 100)
+val amount = math.min(cols(4).toDouble, 1000.0)
+
+EcommerceSession(
+cols(0),
+duration,
+pages,
+StringUtils.capitalize(cols(3).toLowerCase),
+amount,
+cols(5).toDouble,
+cols(6),
+cols(7),
+cols(8),
+cols(9),
+StringUtils.stripAccents(cols(10))
+)
+}.cache()
+
+val avgAmountByCategory = sessions
+.map(s => (s.product_category, (s.purchase_amount, 1)))
+.reduceByKey((a, b) => (a._1 + b._1, a._2 + b._2))
+.mapValues { case (total, count) => total / count }
+.collect()
+.sortBy(-_._2)
+
+val avgScoreByDevice = sessions
+.map(s => (s.device_type, (s.review_score, 1)))
+.reduceByKey((a, b) => (a._1 + b._1, a._2 + b._2))
+.mapValues { case (total, count) => total / count }
+.collect()
+
+val avgAmountByCountry = sessions
+.map(s => (s.country, (s.purchase_amount, 1)))
+.reduceByKey((a, b) => (a._1 + b._1, a._2 + b._2))
+.mapValues { case (total, count) => total / count }
+.collect()
+.sortBy(-_._2)
+
+val sessionsByCategory = sessions
+.map(s => (s.product_category, 1))
+.reduceByKey(_ + _)
+.collect()
+.sortBy(-_._2)
+
+val conversionByCategory = sessions
+.map(s => (s.product_category, if (s.purchase_amount > 0) 1 else 0))
+.aggregateByKey((0, 0))(
+(acc, value) => (acc._1 + value, acc._2 + 1),
+(a, b) => (a._1 + b._1, a._2 + b._2)
+)
+.mapValues { case (converted, total) => (converted.toDouble / total) * 100 }
+.collect()
+.sortBy(-_._2)
+
+def stringify(seq: Seq[String]) = seq.map(_.replace("\"", "\\\"")).mkString("\"", "\",\"", "\"")
+def toStr[T](seq: Seq[T]) = seq.mkString(",")
+
+val html = s"""
+|<html>
+|<head>
+    |<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    |<style>
+    |  body { font-family: Arial; margin: 40px; }
+    |  h2 { margin-top: 40px; }
+    |  canvas { margin-bottom: 60px; }
+    |</style>
+    |</head>
+|<body>
+|<h1>Tableau de bord Analyse E-Commerce</h1>
+|
+|<h2>Montant moyen par catégorie</h2>
+|<canvas id="chart1"></canvas>
+|
+|<h2>Note moyenne par type d'appareil</h2>
+|<canvas id="chart2"></canvas>
+|
+|<h2>Montant moyen par pays</h2>
+|<canvas id="chart3"></canvas>
+|
+|<h2>Distribution des catégories de produits</h2>
+|<canvas id="chart4"></canvas>
+|
+|<h2>Taux de conversion par catégorie (%)</h2>
+|<canvas id="chart5"></canvas>
+|
+|<script>
+    |new Chart(document.getElementById('chart1'), {
+        |  type: 'bar', data: {
+    |    labels: [${stringify(avgAmountByCategory.map(_._1))}],
+    |    datasets: [{ label: 'Montant moyen (€)', data: [${toStr(avgAmountByCategory.map(_._2))}], backgroundColor: 'rgba(75,192,192,0.2)', borderColor: 'rgba(75,192,192,1)', borderWidth: 1 }]
+    |  }
+    |});
+    |
+    |new Chart(document.getElementById('chart2'), {
+        |  type: 'bar', data: {
+    |    labels: [${stringify(avgScoreByDevice.map(_._1))}],
+    |    datasets: [{ label: 'Note moyenne (/5)', data: [${toStr(avgScoreByDevice.map(_._2))}], backgroundColor: 'rgba(255,206,86,0.2)', borderColor: 'rgba(255,206,86,1)', borderWidth: 1 }]
+    |  }
+    |});
+    |
+    |new Chart(document.getElementById('chart3'), {
+        |  type: 'bar', data: {
+    |    labels: [${stringify(avgAmountByCountry.map(_._1))}],
+    |    datasets: [{ label: 'Montant moyen (€)', data: [${toStr(avgAmountByCountry.map(_._2))}], backgroundColor: 'rgba(153,102,255,0.2)', borderColor: 'rgba(153,102,255,1)', borderWidth: 1 }]
+    |  }
+    |});
+    |
+    |new Chart(document.getElementById('chart4'), {
+        |  type: 'bar', data: {
+    |    labels: [${stringify(sessionsByCategory.map(_._1))}],
+    |    datasets: [{ label: 'Nombre de sessions', data: [${toStr(sessionsByCategory.map(_._2))}], backgroundColor: 'rgba(54, 162, 235, 0.2)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 }]
+    |  }
+    |});
+    |
+    |new Chart(document.getElementById('chart5'), {
+        |  type: 'bar', data: {
+    |    labels: [${stringify(conversionByCategory.map(_._1))}],
+    |    datasets: [{ label: 'Taux de conversion (%)', data: [${toStr(conversionByCategory.map(_._2))}], backgroundColor: 'rgba(75, 192, 192, 0.5)', borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1 }]
+    |  }
+    |});
+    |</script>
+|</body>
+|</html>
+|""".stripMargin
+
+Files.createDirectories(Paths.get("output"))
+Files.write(Paths.get("output/dashboard.html"), html.getBytes, StandardOpenOption.CREATE)
+
+println("✅ Dashboard HTML généré : output/dashboard.html")
+sc.stop()
+}
+}

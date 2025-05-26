@@ -1,0 +1,93 @@
+
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: Arial; margin: 40px; }
+  h2 { margin-top: 40px; font-size: 20px; }
+  canvas {
+    margin-bottom: 40px;
+    max-width: 600px;
+    max-height: 300px;
+  }
+</style>
+</head>
+<body>
+<h1>Tableau de bord Analyse E-Commerce</h1>
+
+<h2>Sessions par heure de la journée</h2>
+<canvas id="chart6"></canvas>
+
+<h2>Montant d'achats par heure de la journée</h2>
+<canvas id="chart7"></canvas>
+
+<h2>Distribution des notes d'avis</h2>
+<canvas id="chart8"></canvas>
+
+<h2>Taux de conversion par type d'appareil</h2>
+<canvas id="chart9"></canvas>
+
+<script>
+new Chart(document.getElementById('chart6'), {
+  type: 'line',
+  data: {
+    labels: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],
+    datasets: [{
+      label: 'Nombre de sessions',
+      data: [20511,20491,20688,20670,20569,20504,20508,20516,20523,20492,20651,20850,20530,20431,20593,20601,20558,20454,20393,20534,20608,20338,20579,20668],
+      fill: false,
+      borderColor: 'rgba(255,99,132,1)',
+      tension: 0.1
+    }]
+  }
+});
+
+new Chart(document.getElementById('chart7'), {
+  type: 'line',
+  data: {
+    labels: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],
+    datasets: [{
+      label: 'Total des achats (€)',
+      data: [1011940.3900000004,1024156.9400000024,1030948.670000001,1038338.530000001,1033239.870000001,1014695.5900000003,1024596.8999999999,1018734.1799999994,1021174.4499999981,1042377.9100000027,1025246.4599999997,1052361.879999999,1036681.9000000004,1024874.7799999996,1035996.0199999984,1024495.8100000003,1025368.1100000003,1022963.4399999985,1034138.4900000019,1032287.51,1046083.1999999983,1006142.1399999987,1013403.0900000026,1038046.3800000018],
+      fill: true,
+      backgroundColor: 'rgba(54, 162, 235, 0.2)',
+      borderColor: 'rgba(54, 162, 235, 1)',
+      tension: 0.4
+    }]
+  }
+});
+
+new Chart(document.getElementById('chart8'), {
+  type: 'pie',
+  data: {
+    labels: ["1.0","2.0","3.0","4.0","5.0"],
+    datasets: [{
+      label: 'Distribution des notes',
+      data: [98498,98776,98237,98656,99093],
+      backgroundColor: [
+        'rgba(255, 99, 132, 0.6)',
+        'rgba(255, 159, 64, 0.6)',
+        'rgba(255, 205, 86, 0.6)',
+        'rgba(75, 192, 192, 0.6)',
+        'rgba(54, 162, 235, 0.6)'
+      ]
+    }]
+  }
+});
+
+new Chart(document.getElementById('chart9'), {
+  type: 'bar',
+  data: {
+    labels: ["Desktop","Mobile"],
+    datasets: [{
+      label: 'Taux de conversion (%)',
+      data: [99.9892223958614,99.99158942471665],
+      backgroundColor: 'rgba(255, 159, 64, 0.6)',
+      borderColor: 'rgba(255, 159, 64, 1)',
+      borderWidth: 1
+    }]
+  }
+});
+</script>
+</body>
+</html>
